@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { initDb } from './server/db.ts';
 import { createApiRouter } from './server/routes.ts';
@@ -11,6 +12,8 @@ async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
+
+  const httpServer = http.createServer(app);
 
   // Parse JSON for standard API requests (restore endpoint uses express.raw)
   app.use((req, res, next) => {
@@ -28,7 +31,10 @@ async function startServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ws: { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -46,7 +52,7 @@ async function startServer() {
   }
 
   const port = Number(process.env.PORT) || 3000;
-  app.listen(port, '0.0.0.0', () => {
+  httpServer.listen(port, '0.0.0.0', () => {
     console.log(`JAWARA AC server berjalan di http://0.0.0.0:${port}`);
   });
 }
