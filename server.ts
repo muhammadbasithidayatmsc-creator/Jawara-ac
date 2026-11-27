@@ -51,7 +51,12 @@ async function startServer() {
     });
   }
 
-  const port = Number(process.env.PORT) || 3000;
+  const portArgIndex = process.argv.indexOf('--port');
+  const cliPort =
+    portArgIndex !== -1 && process.argv[portArgIndex + 1]
+      ? Number(process.argv[portArgIndex + 1])
+      : NaN;
+  const port = Number.isFinite(cliPort) && cliPort > 0 ? cliPort : Number(process.env.PORT) || 3000;
   httpServer.listen(port, '0.0.0.0', () => {
     console.log(`JAWARA AC server berjalan di http://0.0.0.0:${port}`);
   });

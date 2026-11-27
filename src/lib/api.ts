@@ -80,6 +80,8 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const errMsg =
       parsed && typeof parsed === 'object' && 'error' in parsed
         ? String((parsed as { error?: unknown }).error || 'Permintaan gagal.')
+        : res.status === 404
+        ? 'Endpoint server tidak ditemukan (404). Pastikan server backend Node.js berjalan dan muat ulang halaman.'
         : `Permintaan gagal (${res.status}).`;
     throw new Error(errMsg);
   }
