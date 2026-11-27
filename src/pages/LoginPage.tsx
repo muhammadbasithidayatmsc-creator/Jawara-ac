@@ -93,7 +93,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               Kelola Operasional &amp; Keuangan Service AC dalam Satu Sistem
             </h1>
             <p className="text-sm text-slate-300 mt-3 leading-relaxed max-w-md">
-              Catat order masuk, jadwal teknisi, rincian pekerjaan, pembayaran DP maupun lunas, invoice PDF, hingga laporan laba bersih dengan database SQLite server internal.
+              Catat order masuk, jadwal teknisi, rincian pekerjaan, pembayaran DP maupun lunas, invoice PDF, hingga laporan laba bersih secara praktis langsung di browser perangkat Anda.
             </p>
           </div>
 
@@ -126,7 +126,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
             {checkingStatus ? (
               <div className="py-12 text-center text-sm text-slate-500">
-                Menghubungkan ke server internal JAWARA AC...
+                Menyiapkan database lokal JAWARA AC...
               </div>
             ) : (
               <>
@@ -139,8 +139,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 </h2>
                 <p className="text-sm text-slate-500 mt-1.5">
                   {needsSetup
-                    ? 'Database masih kosong. Buat email dan password Admin utama untuk mengamankan sistem JAWARA AC.'
-                    : 'Masukkan email dan password Admin untuk mengelola operasional JAWARA AC.'}
+                    ? 'Database browser masih kosong. Buat email dan password Admin lokal untuk mulai menggunakan JAWARA AC.'
+                    : 'Masukkan email dan password Admin untuk membuka dashboard operasional JAWARA AC.'}
                 </p>
 
                 {errorMsg && (
@@ -255,7 +255,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 </form>
 
                 <p className="text-xs text-slate-500 mt-6 leading-relaxed">
-                  Seluruh data tersimpan permanen di database SQLite server internal dan dapat di-backup atau dipulihkan kapan saja melalui menu Pengaturan.
+                  Seluruh data tersimpan permanen di database lokal browser (IndexedDB) tanpa server terpisah dan dapat di-backup atau dipulihkan kapan saja dalam format JSON. Login lokal ini digunakan untuk pembatasan akses antarmuka pada perangkat ini.
                 </p>
               </>
             )}

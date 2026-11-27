@@ -388,7 +388,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {loadingData && (
-              <div className="text-xs text-slate-500">Menyinkronkan data dari server...</div>
+              <div className="text-xs text-slate-500">Memuat rincian order...</div>
             )}
 
             {activeTab === 'summary' && (

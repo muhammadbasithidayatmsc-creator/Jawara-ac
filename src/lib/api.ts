@@ -6,16 +6,55 @@ import type {
   InventoryItem,
   Invoice,
   Order,
-  OrderItem,
   OrderStatus,
-  OrderStatusHistory,
   Payment,
   PaymentMethod,
-  Profile,
   StockMovement,
   StockMovementType,
   Technician,
 } from '../types/database';
+import {
+  addOrderItem,
+  changeAdminPassword,
+  createCustomer,
+  createExpense,
+  createInventoryItem,
+  createOrder,
+  createTechnician,
+  deleteCustomer,
+  deleteExpense,
+  deleteInventoryItem,
+  deleteOrder,
+  deleteOrderItem,
+  deleteTechnician,
+  exportDatabaseJson,
+  generateNextInvoiceNumber,
+  generateNextOrderNumber,
+  getAuthStatus,
+  getBootstrapData,
+  getMe,
+  getOrderDetails,
+  importDatabaseJson,
+  loginAdmin,
+  logoutAdmin,
+  recordPayment,
+  recordStockMovement,
+  setupFirstAdmin,
+  toggleArchiveOrder,
+  toggleTechnician,
+  updateAdminProfile,
+  updateBusinessSettings,
+  updateCustomer,
+  updateExpense,
+  updateInventoryItem,
+  updateInvoiceNumber,
+  updateOrder,
+  updateOrderItem,
+  updateOrderStatus,
+  updateTechnician,
+  upsertInvoice,
+  voidPayment,
+} from './db';
 
 let inMemoryToken = '';
 let onUnauthorizedHandler: (() => void) | null = null;
@@ -36,7 +75,7 @@ export function setUnauthorizedHandler(handler: () => void): void {
   onUnauthorizedHandler = handler;
 }
 
-export function formatApiError(err: unknown, fallback = 'Terjadi kesalahan pada server.'): string {
+export function formatApiError(err: unknown, fallback = 'Terjadi kesalahan saat memproses data.'): string {
   if (!err) return fallback;
   if (typeof err === 'string') return err;
   if (err instanceof Error) return err.message || fallback;
@@ -44,49 +83,6 @@ export function formatApiError(err: unknown, fallback = 'Terjadi kesalahan pada 
     return String((err as { message?: unknown }).message || fallback);
   }
   return fallback;
-}
-
-async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers || {});
-  if (inMemoryToken) {
-    headers.set('Authorization', `Bearer ${inMemoryToken}`);
-  }
-  if (options.body && !(options.body instanceof ArrayBuffer) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const res = await fetch(url, {
-    ...options,
-    credentials: 'include',
-    headers,
-  });
-
-  if (res.status === 401 && !url.startsWith('/api/auth/login') && !url.startsWith('/api/auth/setup')) {
-    clearAuthToken();
-    onUnauthorizedHandler?.();
-  }
-
-  const text = await res.text();
-  let parsed: unknown = null;
-  if (text) {
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = null;
-    }
-  }
-
-  if (!res.ok) {
-    const errMsg =
-      parsed && typeof parsed === 'object' && 'error' in parsed
-        ? String((parsed as { error?: unknown }).error || 'Permintaan gagal.')
-        : res.status === 404
-        ? 'Endpoint server tidak ditemukan (404). Pastikan server backend Node.js berjalan dan muat ulang halaman.'
-        : `Permintaan gagal (${res.status}).`;
-    throw new Error(errMsg);
-  }
-
-  return parsed as T;
 }
 
 export interface BootstrapPayload {
@@ -102,74 +98,46 @@ export interface BootstrapPayload {
   businessSettings: BusinessSettings | null;
 }
 
+async function runLocal<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Sesi Admin tidak ditemukan')) {
+      clearAuthToken();
+      onUnauthorizedHandler?.();
+    }
+    throw err;
+  }
+}
+
 export const api = {
-  // Auth
-  authStatus: () => apiFetch<{ needsSetup: boolean }>('/api/auth/status'),
+  // Auth (Local IndexedDB)
+  authStatus: () => getAuthStatus(),
   setupFirstAdmin: (payload: { email: string; password: string; full_name: string }) =>
-    apiFetch<{ token: string; profile: Profile }>('/api/auth/setup', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  login: (payload: { email: string; password: string }) =>
-    apiFetch<{ token: string; profile: Profile }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  logout: () =>
-    apiFetch<{ ok: boolean }>('/api/auth/logout', {
-      method: 'POST',
-    }),
-  getMe: () => apiFetch<{ profile: Profile }>('/api/auth/me'),
-  updateProfile: (payload: { full_name: string; phone: string }) =>
-    apiFetch<{ profile: Profile }>('/api/auth/profile', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  changePassword: (password: string) =>
-    apiFetch<{ ok: boolean }>('/api/auth/password', {
-      method: 'PUT',
-      body: JSON.stringify({ password }),
-    }),
+    setupFirstAdmin(payload),
+  login: (payload: { email: string; password: string }) => loginAdmin(payload),
+  logout: () => logoutAdmin(),
+  getMe: () => getMe(),
+  updateProfile: (payload: { email?: string; full_name: string; phone: string }) =>
+    runLocal(() => updateAdminProfile(payload)),
+  changePassword: (password: string) => runLocal(() => changeAdminPassword(password)),
 
   // Bootstrap
-  bootstrap: () => apiFetch<BootstrapPayload>('/api/bootstrap'),
+  bootstrap: (): Promise<BootstrapPayload> => runLocal(() => getBootstrapData()),
 
   // Orders & Items
-  nextOrderNumber: () => apiFetch<{ order_number: string }>('/api/orders/next-number'),
-  nextInvoiceNumber: () => apiFetch<{ invoice_number: string }>('/api/invoices/next-number'),
-  getOrderDetails: (orderId: string) =>
-    apiFetch<{
-      order: Order;
-      items: OrderItem[];
-      payments: Payment[];
-      history: OrderStatusHistory[];
-      invoice: Invoice | null;
-    }>(`/api/orders/${encodeURIComponent(orderId)}/details`),
+  nextOrderNumber: async () => ({ order_number: await generateNextOrderNumber() }),
+  nextInvoiceNumber: async () => ({ invoice_number: await generateNextInvoiceNumber() }),
+  getOrderDetails: (orderId: string) => runLocal(() => getOrderDetails(orderId)),
 
-  createOrder: (payload: Record<string, unknown>) =>
-    apiFetch<{ order: Order; newCustomer?: Customer }>('/api/orders', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  createOrder: (payload: Record<string, unknown>) => runLocal(() => createOrder(payload)),
   updateOrder: (orderId: string, payload: Record<string, unknown>) =>
-    apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(orderId)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => updateOrder(orderId, payload)),
   updateOrderStatus: (orderId: string, status: OrderStatus, notes: string) =>
-    apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(orderId)}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status, notes }),
-    }),
+    runLocal(() => updateOrderStatus(orderId, status, notes)),
   toggleArchiveOrder: (orderId: string, is_archived: boolean) =>
-    apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(orderId)}/archive`, {
-      method: 'PATCH',
-      body: JSON.stringify({ is_archived }),
-    }),
-  deleteOrder: (orderId: string) =>
-    apiFetch<{ ok: boolean }>(`/api/orders/${encodeURIComponent(orderId)}`, {
-      method: 'DELETE',
-    }),
+    runLocal(() => toggleArchiveOrder(orderId, is_archived)),
+  deleteOrder: (orderId: string) => runLocal(() => deleteOrder(orderId)),
 
   addOrderItem: (
     orderId: string,
@@ -181,11 +149,7 @@ export const api = {
       unit_price: number;
       sort_order: number;
     }
-  ) =>
-    apiFetch<{ id: string }>(`/api/orders/${encodeURIComponent(orderId)}/items`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  ) => runLocal(() => addOrderItem(orderId, payload)),
   updateOrderItem: (
     itemId: string,
     payload: {
@@ -195,15 +159,8 @@ export const api = {
       unit: string;
       unit_price: number;
     }
-  ) =>
-    apiFetch<{ ok: boolean }>(`/api/order-items/${encodeURIComponent(itemId)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteOrderItem: (itemId: string) =>
-    apiFetch<{ ok: boolean }>(`/api/order-items/${encodeURIComponent(itemId)}`, {
-      method: 'DELETE',
-    }),
+  ) => runLocal(() => updateOrderItem(itemId, payload)),
+  deleteOrderItem: (itemId: string) => runLocal(() => deleteOrderItem(itemId)),
 
   // Payments
   recordPayment: (payload: {
@@ -213,64 +170,30 @@ export const api = {
     payment_date: string;
     notes: string;
     invoice_number?: string | null;
-  }) =>
-    apiFetch<Record<string, unknown>>('/api/payments', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  voidPayment: (paymentId: string) =>
-    apiFetch<Record<string, unknown>>(`/api/payments/${encodeURIComponent(paymentId)}/void`, {
-      method: 'POST',
-    }),
+  }) => runLocal(() => recordPayment(payload)),
+  voidPayment: (paymentId: string) => runLocal(() => voidPayment(paymentId)),
 
   // Invoices
   upsertInvoice: (payload: { order_id: string; invoice_number?: string }) =>
-    apiFetch<{ invoice: Invoice }>('/api/invoices', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => upsertInvoice(payload)),
   updateInvoiceNumber: (invoiceId: string, invoice_number: string) =>
-    apiFetch<{ invoice: Invoice }>(`/api/invoices/${encodeURIComponent(invoiceId)}/number`, {
-      method: 'PATCH',
-      body: JSON.stringify({ invoice_number }),
-    }),
+    runLocal(() => updateInvoiceNumber(invoiceId, invoice_number)),
 
   // Technicians
   createTechnician: (payload: Omit<Technician, 'id' | 'created_at' | 'updated_at'>) =>
-    apiFetch<{ technician: Technician }>('/api/technicians', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => createTechnician(payload)),
   updateTechnician: (id: string, payload: Omit<Technician, 'id' | 'created_at' | 'updated_at'>) =>
-    apiFetch<{ technician: Technician }>(`/api/technicians/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => updateTechnician(id, payload)),
   toggleTechnician: (id: string, is_active: boolean) =>
-    apiFetch<{ technician: Technician }>(`/api/technicians/${encodeURIComponent(id)}/toggle`, {
-      method: 'PATCH',
-      body: JSON.stringify({ is_active }),
-    }),
-  deleteTechnician: (id: string) =>
-    apiFetch<{ ok: boolean }>(`/api/technicians/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+    runLocal(() => toggleTechnician(id, is_active)),
+  deleteTechnician: (id: string) => runLocal(() => deleteTechnician(id)),
 
   // Customers
   createCustomer: (payload: Omit<Customer, 'id' | 'created_at' | 'updated_at'>) =>
-    apiFetch<{ customer: Customer }>('/api/customers', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => createCustomer(payload)),
   updateCustomer: (id: string, payload: Omit<Customer, 'id' | 'created_at' | 'updated_at'>) =>
-    apiFetch<{ customer: Customer }>(`/api/customers/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteCustomer: (id: string) =>
-    apiFetch<{ ok: boolean }>(`/api/customers/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+    runLocal(() => updateCustomer(id, payload)),
+  deleteCustomer: (id: string) => runLocal(() => deleteCustomer(id)),
 
   // Expenses
   createExpense: (payload: {
@@ -280,11 +203,7 @@ export const api = {
     amount: number;
     payment_method: PaymentMethod;
     notes: string;
-  }) =>
-    apiFetch<{ expense: Expense }>('/api/expenses', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  }) => runLocal(() => createExpense(payload)),
   updateExpense: (
     id: string,
     payload: {
@@ -295,15 +214,8 @@ export const api = {
       payment_method: PaymentMethod;
       notes: string;
     }
-  ) =>
-    apiFetch<{ expense: Expense }>(`/api/expenses/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteExpense: (id: string) =>
-    apiFetch<{ ok: boolean }>(`/api/expenses/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+  ) => runLocal(() => updateExpense(id, payload)),
+  deleteExpense: (id: string) => runLocal(() => deleteExpense(id)),
 
   // Inventory
   createInventoryItem: (payload: {
@@ -315,11 +227,7 @@ export const api = {
     min_stock: number;
     buy_price: number;
     sell_price: number;
-  }) =>
-    apiFetch<{ item: InventoryItem }>('/api/inventory', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  }) => runLocal(() => createInventoryItem(payload)),
   updateInventoryItem: (
     id: string,
     payload: {
@@ -331,15 +239,8 @@ export const api = {
       buy_price: number;
       sell_price: number;
     }
-  ) =>
-    apiFetch<{ item: InventoryItem }>(`/api/inventory/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteInventoryItem: (id: string) =>
-    apiFetch<{ ok: boolean }>(`/api/inventory/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }),
+  ) => runLocal(() => updateInventoryItem(id, payload)),
+  deleteInventoryItem: (id: string) => runLocal(() => deleteInventoryItem(id)),
   recordStockMovement: (
     itemId: string,
     payload: {
@@ -348,40 +249,16 @@ export const api = {
       reference_note: string;
       order_id?: string | null;
     }
-  ) =>
-    apiFetch<Record<string, unknown>>(`/api/inventory/${encodeURIComponent(itemId)}/movements`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  ) => runLocal(() => recordStockMovement(itemId, payload)),
 
   // Settings
   updateSettings: (payload: Partial<BusinessSettings>) =>
-    apiFetch<{ settings: BusinessSettings }>('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
+    runLocal(() => updateBusinessSettings(payload)),
 
-  // Database Backup & Restore
+  // Database Backup & Restore (JSON)
   downloadBackup: async () => {
-    const res = await fetch('/api/database/backup', {
-      credentials: 'include',
-      headers: inMemoryToken ? { Authorization: `Bearer ${inMemoryToken}` } : {},
-    });
-    if (!res.ok) {
-      let errMsg = 'Gagal mengunduh backup database.';
-      try {
-        const data = await res.json();
-        if (data?.error) errMsg = String(data.error);
-      } catch {
-        // ignore parse error
-      }
-      throw new Error(errMsg);
-    }
-    const blob = await res.blob();
-    const disposition = res.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="([^"]+)"/);
-    const filename = match?.[1] || `jawara_ac_backup_${new Date().toISOString().slice(0, 10)}.db`;
-
+    const { filename, content } = await runLocal(() => exportDatabaseJson());
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -393,13 +270,7 @@ export const api = {
   },
 
   restoreDatabase: async (file: File) => {
-    const buffer = await file.arrayBuffer();
-    return apiFetch<{ ok: boolean; message: string }>('/api/database/restore', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
-      body: buffer,
-    });
+    const text = await file.text();
+    return runLocal(() => importDatabaseJson(text));
   },
 };

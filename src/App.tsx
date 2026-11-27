@@ -47,7 +47,7 @@ const AppContent: React.FC = () => {
   const [loadingData, setLoadingData] = useState(false);
   const [loadError, setLoadError] = useState('');
 
-  // Live SQLite internal backend data
+  // Live IndexedDB (Dexie.js) client-side data
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -80,7 +80,7 @@ const AppContent: React.FC = () => {
       setInvoices(data.invoices || []);
       setBusinessSettings(data.businessSettings || null);
     } catch (err) {
-      const msg = formatApiError(err, 'Gagal memuat data dari server internal.');
+      const msg = formatApiError(err, 'Gagal memuat data dari database browser.');
       setLoadError(msg);
       showToast('error', msg);
     } finally {

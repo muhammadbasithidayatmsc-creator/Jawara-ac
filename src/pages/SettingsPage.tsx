@@ -39,6 +39,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
   const [savingBiz, setSavingBiz] = useState(false);
 
   // Admin profile & password state
+  const [adminEmail, setAdminEmail] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -71,6 +72,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
 
   useEffect(() => {
     if (profile) {
+      setAdminEmail(profile.email || '');
       setAdminName(profile.full_name || '');
       setAdminPhone(profile.phone || '');
     }
@@ -111,6 +113,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
     setSavingProfile(true);
     try {
       await api.updateProfile({
+        email: adminEmail.trim().toLowerCase(),
         full_name: adminName.trim() || 'Admin JAWARA AC',
         phone: adminPhone.trim(),
       });
@@ -152,7 +155,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
     setDownloadingBackup(true);
     try {
       await api.downloadBackup();
-      showToast('success', 'File backup database SQLite (.db) berhasil diunduh.');
+      showToast('success', 'File backup database (.json) berhasil diunduh.');
     } catch (err) {
       showToast('error', formatApiError(err, 'Gagal mengunduh backup database.'));
     } finally {
@@ -163,8 +166,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.db')) {
-      showToast('error', 'Pilih file backup SQLite dengan ekstensi .db.');
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      showToast('error', 'Pilih file backup JAWARA AC dengan ekstensi .json.');
       e.target.value = '';
       return;
     }
@@ -179,7 +182,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
       const res = await api.restoreDatabase(restoreFile);
       setRestoreFile(null);
       await onRefresh();
-      showToast('success', res.message || 'Database SQLite berhasil dipulihkan.');
+      showToast('success', res.message || 'Database berhasil dipulihkan dari file JSON.');
     } catch (err) {
       showToast('error', formatApiError(err, 'Gagal memulihkan database.'));
     } finally {
@@ -350,10 +353,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Email Login</label>
             <input
-              type="text"
-              value={profile?.email || ''}
-              disabled
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600"
+              type="email"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              required
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm text-slate-900"
             />
           </div>
           <div>
@@ -421,19 +425,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
             {savingPassword ? 'Memperbarui...' : 'Simpan Password Baru'}
           </button>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Hanya akun Admin yang aktif yang memiliki akses penuh ke seluruh modul operasional dan keuangan JAWARA AC.
+            Login Admin lokal berfungsi untuk membatasi akses antarmuka di browser perangkat ini dan dapat diubah kapan saja.
           </p>
         </form>
       </div>
 
-      {/* Backup & Restore Database SQLite */}
+      {/* Backup & Restore Database JSON */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-4">
         <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
           <Database className="w-5 h-5 text-blue-600" />
           <div>
-            <h3 className="text-base font-bold text-slate-900">Backup &amp; Restore Database SQLite</h3>
+            <h3 className="text-base font-bold text-slate-900">Backup &amp; Restore Database (JSON)</h3>
             <p className="text-xs text-slate-500">
-              Simpan salinan permanen seluruh data pelanggan, teknisi, order, invoice, pembayaran, pengeluaran, dan inventaris dalam satu file <span className="font-mono font-semibold">.db</span>.
+              Simpan salinan permanen seluruh data pelanggan, teknisi, order, invoice, pembayaran, pengeluaran, dan inventaris dalam satu file <span className="font-mono font-semibold">.json</span>.
             </p>
           </div>
         </div>
@@ -441,7 +445,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
         <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
           <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            Lakukan backup berkala sebelum melakukan restore atau migrasi server. Saat restore dijalankan, sistem akan memeriksa integritas file SQLite dan otomatis menyimpan snapshot database sebelumnya sebagai cadangan.
+            Lakukan backup JSON secara berkala sebelum membersihkan data browser atau memindahkan data ke perangkat lain (HP/laptop). Saat restore dijalankan, sistem akan memvalidasi struktur JSON dan memulihkan seluruh data ke database lokal browser.
           </div>
         </div>
 
@@ -450,16 +454,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
             type="button"
             onClick={handleDownloadBackup}
             disabled={downloadingBackup}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60 min-h-[42px]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold disabled:opacity-60 min-h-[44px]"
           >
             <Download className="w-4 h-4" />
-            <span>{downloadingBackup ? 'Menyiapkan Backup...' : 'Download Backup (.db)'}</span>
+            <span>{downloadingBackup ? 'Menyiapkan Backup...' : 'Download Backup (.json)'}</span>
           </button>
 
           <input
             ref={fileInputRef}
             type="file"
-            accept=".db"
+            accept=".json,application/json"
             onChange={handleFileSelected}
             className="hidden"
           />
@@ -467,20 +471,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, profile, o
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={restoringDb}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold disabled:opacity-60 min-h-[42px]"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold disabled:opacity-60 min-h-[44px]"
           >
             <Upload className="w-4 h-4 text-slate-600" />
-            <span>{restoringDb ? 'Memulihkan Database...' : 'Restore dari File (.db)'}</span>
+            <span>{restoringDb ? 'Memulihkan Database...' : 'Restore dari File (.json)'}</span>
           </button>
         </div>
       </div>
 
       <ConfirmModal
         open={Boolean(restoreFile)}
-        title="Pulihkan Database dari Backup?"
+        title="Pulihkan Database dari Backup JSON?"
         description={
           restoreFile
-            ? `File "${restoreFile.name}" (${Math.max(1, Math.round(restoreFile.size / 1024))} KB) akan menggantikan seluruh data aktif saat ini setelah validasi integritas SQLite berhasil.`
+            ? `File "${restoreFile.name}" (${Math.max(1, Math.round(restoreFile.size / 1024))} KB) akan menggantikan seluruh data aktif di browser ini setelah validasi struktur JSON berhasil.`
             : ''
         }
         confirmLabel="Ya, Pulihkan Database"
