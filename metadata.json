@@ -1,0 +1,6 @@
+{
+  "name": "JAWARA AC",
+  "description": "Sistem Manajemen Operasional & Keuangan Bisnis Service AC — Service AC Lebih Mudah, Bisnis Lebih Maju",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
