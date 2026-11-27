@@ -9,6 +9,7 @@ async function startServer() {
   initDb();
 
   const app = express();
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
   // Parse JSON for standard API requests (restore endpoint uses express.raw)

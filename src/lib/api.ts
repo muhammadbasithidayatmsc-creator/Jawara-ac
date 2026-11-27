@@ -57,6 +57,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers,
   });
 
@@ -111,6 +112,10 @@ export const api = {
     apiFetch<{ token: string; profile: Profile }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  logout: () =>
+    apiFetch<{ ok: boolean }>('/api/auth/logout', {
+      method: 'POST',
     }),
   getMe: () => apiFetch<{ profile: Profile }>('/api/auth/me'),
   updateProfile: (payload: { full_name: string; phone: string }) =>
@@ -357,6 +362,7 @@ export const api = {
   // Database Backup & Restore
   downloadBackup: async () => {
     const res = await fetch('/api/database/backup', {
+      credentials: 'include',
       headers: inMemoryToken ? { Authorization: `Bearer ${inMemoryToken}` } : {},
     });
     if (!res.ok) {

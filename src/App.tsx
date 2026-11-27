@@ -8,7 +8,6 @@ import {
   api,
   clearAuthToken,
   formatApiError,
-  getAuthToken,
   setUnauthorizedHandler,
 } from './lib/api';
 import { CustomersPage } from './pages/CustomersPage';
@@ -90,13 +89,6 @@ const AppContent: React.FC = () => {
   }, [showToast]);
 
   const verifySession = useCallback(async () => {
-    if (!getAuthToken()) {
-      setIsAuthenticated(false);
-      setProfile(null);
-      setAuthChecking(false);
-      return;
-    }
-
     try {
       const { profile: prof } = await api.getMe();
       if (!prof || prof.role !== 'admin' || !prof.is_active) {
@@ -130,6 +122,11 @@ const AppContent: React.FC = () => {
   }, [verifySession]);
 
   const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      // ignore logout network error
+    }
     clearAuthToken();
     setIsAuthenticated(false);
     setProfile(null);

@@ -2,8 +2,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import express, { type Request, type Response, type Router } from 'express';
 import {
+  clearSessionCookie,
   hashPassword,
   requireAdmin,
+  setSessionCookie,
   signSessionToken,
   verifyPassword,
   type AdminRequest,
@@ -112,6 +114,7 @@ export function createApiRouter(): Router {
       `).run(id, email, hashPassword(password), fullName, ts, ts);
 
       const token = signSessionToken(id, email);
+      setSessionCookie(req, res, token);
       res.status(201).json({
         token,
         profile: {
@@ -168,6 +171,7 @@ export function createApiRouter(): Router {
       }
 
       const token = signSessionToken(admin.id, admin.email);
+      setSessionCookie(req, res, token);
       res.json({
         token,
         profile: {
@@ -184,6 +188,11 @@ export function createApiRouter(): Router {
     } catch (err) {
       handleSqlError(res, err, 'Gagal memproses login Admin.');
     }
+  });
+
+  router.post('/auth/logout', (req: Request, res: Response) => {
+    clearSessionCookie(req, res);
+    res.json({ ok: true });
   });
 
   // ===========================================================================
@@ -1509,6 +1518,10 @@ export function createApiRouter(): Router {
       }
     }
   );
+
+  router.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: 'Endpoint API tidak ditemukan.' });
+  });
 
   return router;
 }
